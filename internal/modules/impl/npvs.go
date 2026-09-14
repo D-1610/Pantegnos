@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -282,8 +283,7 @@ func customPBKDF2HmacSha256(passphraseBytes, salt []byte, iterations, dkLen int)
 		mac.Write(counter)
 		digest := mac.Sum(nil)
 
-		blockXor := make([]byte, len(digest))
-		copy(blockXor, digest)
+		blockXor := slices.Clone(digest)
 
 		for j := 2; j <= iterations; j++ {
 			mac.Reset()
@@ -294,10 +294,7 @@ func customPBKDF2HmacSha256(passphraseBytes, salt []byte, iterations, dkLen int)
 			}
 		}
 
-		n := 32
-		if dkLen-written < n {
-			n = dkLen - written
-		}
+		n := min(32, dkLen-written)
 		copy(out[written:written+n], blockXor[:n])
 		written += n
 	}

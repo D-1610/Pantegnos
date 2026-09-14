@@ -97,7 +97,7 @@ func decryptNetMod(ciphertext []byte) ([]byte, string, error) {
 		}
 		return unpadded, NetModKeys[i], nil
 	}
-	return nil, "", fmt.Errorf("no netmod key matched: %v", lastErr)
+	return nil, "", fmt.Errorf("no netmod key matched: %w", lastErr)
 }
 
 func strictPKCS7Unpad(data []byte, blockSize int) ([]byte, error) {

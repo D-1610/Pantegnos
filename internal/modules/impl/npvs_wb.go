@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 
@@ -36,7 +37,7 @@ var wbShiftRows = [16]int{0, 5, 10, 15, 4, 9, 14, 3, 8, 13, 2, 7, 12, 1, 6, 11}
 var wbKdfPrefix = []byte("npvtunnel/appkey/v1 ")
 
 const (
-	wbTlastSize  = 4096
+	wbTlastSize = 4096
 	wbTableSize = 16384
 	wbXorSize   = 24576
 )
@@ -46,35 +47,29 @@ var (
 	wbMbl     [16][256]uint32
 	wbTlastV1 [16][256]byte
 	wbTlastV2 [16][256]byte
-
-	wbOnce sync.Once
-	wbErr  error
 )
 
-func loadWB() error {
-	wbOnce.Do(func() {
-		if len(npvsTlastBin) != wbTlastSize || len(npvsTlastBinV2) != wbTlastSize ||
-			len(npvsTyBin) != wbTableSize || len(npvsMblBin) != wbTableSize ||
-			len(npvsXorBin) != wbXorSize {
-			wbErr = errors.New("npvs: embedded whitebox blob has wrong size")
-			return
+var loadWB = sync.OnceValue(func() error {
+	if len(npvsTlastBin) != wbTlastSize || len(npvsTlastBinV2) != wbTlastSize ||
+		len(npvsTyBin) != wbTableSize || len(npvsMblBin) != wbTableSize ||
+		len(npvsXorBin) != wbXorSize {
+		return errors.New("npvs: embedded whitebox blob has wrong size")
+	}
+	for i := range 16 {
+		copy(wbTlastV1[i][:], npvsTlastBin[i*256:(i+1)*256])
+		copy(wbTlastV2[i][:], npvsTlastBinV2[i*256:(i+1)*256])
+		for j := range 256 {
+			k := (i*256 + j) * 4
+			wbTy[i][j] = binary.BigEndian.Uint32(npvsTyBin[k:])
+			wbMbl[i][j] = binary.BigEndian.Uint32(npvsMblBin[k:])
 		}
-		for i := 0; i < 16; i++ {
-			copy(wbTlastV1[i][:], npvsTlastBin[i*256:(i+1)*256])
-			copy(wbTlastV2[i][:], npvsTlastBinV2[i*256:(i+1)*256])
-			for j := 0; j < 256; j++ {
-				k := (i*256 + j) * 4
-				wbTy[i][j] = binary.BigEndian.Uint32(npvsTyBin[k:])
-				wbMbl[i][j] = binary.BigEndian.Uint32(npvsMblBin[k:])
-			}
-		}
-	})
-	return wbErr
-}
+	}
+	return nil
+})
 
 func wbShift(s *[16]byte) {
 	var t [16]byte
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		t[i] = s[wbShiftRows[i]]
 	}
 	*s = t
@@ -100,7 +95,7 @@ func wbApplyRow(s *[16]byte, base int, tab [16][256]uint32, grp int) {
 	b := tab[base+1][s[base+1]]
 	c := tab[base+2][s[base+2]]
 	d := tab[base+3][s[base+3]]
-	for k := 0; k < 4; k++ {
+	for k := range 4 {
 		s[base+k] = wbMix(grp, k, a, b, c, d)
 	}
 }
@@ -110,7 +105,7 @@ func wbBlock(in *[16]byte, tlast *[16][256]byte) (out [16]byte) {
 
 	wbShift(&s)
 
-	for grp := 0; grp < 4; grp++ {
+	for grp := range 4 {
 		base := grp * 4
 
 		wbApplyRow(&s, base, wbTy, grp)
@@ -119,7 +114,7 @@ func wbBlock(in *[16]byte, tlast *[16][256]byte) (out [16]byte) {
 
 	wbShift(&s)
 
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		out[i] = tlast[i][s[i]]
 	}
 	return out
@@ -133,11 +128,8 @@ func wbCTR(nonce, ct []byte, tlast *[16][256]byte) []byte {
 	for i := 0; i < len(ct); i += 16 {
 		ks := wbBlock(&counter, tlast)
 
-		n := len(ct) - i
-		if n > 16 {
-			n = 16
-		}
-		for j := 0; j < n; j++ {
+		n := min(len(ct)-i, 16)
+		for j := range n {
 			out[i+j] = ct[i+j] ^ ks[j]
 		}
 
@@ -162,7 +154,7 @@ func custodianKDKs(salt []byte) [][]byte {
 	var kdks [][]byte
 	for _, tlast := range wbVariants() {
 		stream := wbCTR(material[:16], material[16:], tlast)
-		sum := sha256.Sum256(append(append([]byte{}, wbKdfPrefix...), stream...))
+		sum := sha256.Sum256(slices.Concat(wbKdfPrefix, stream))
 		kdks = append(kdks, sum[:])
 	}
 	return kdks

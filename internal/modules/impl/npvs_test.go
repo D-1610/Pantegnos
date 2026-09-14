@@ -43,7 +43,7 @@ func TestCustodianKDKBothGenerations(t *testing.T) {
 	}
 	for i, want := range want {
 		got := kdks[i]
-		for j := 0; j < 32; j++ {
+		for j := range 32 {
 			if got[j] != want[j] {
 				t.Fatalf("kdk %d byte %d: got %02x want %02x", i, j, got[j], want[j])
 			}

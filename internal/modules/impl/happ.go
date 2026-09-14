@@ -29,14 +29,12 @@ const (
 	VersionCrypt4 = "crypt4"
 )
 
-const (
-	ErrPrivateKeyNotRSA     = "key is not a valid RSA private key"
-	ErrDecryptEmptyLink     = "cannot decrypt an empty link"
-	ErrInvalidLinkFormat    = "link format is invalid"
-	ErrDecryptBadData       = "failed to decrypt data with any available key fallback"
-	ErrEncryptedDataIsEmpty = "encrypted payload cannot be empty"
-	ErrB64Decode            = "base64 decode failed: %w"
-	ErrRSADecode            = "rsa decryption failed: %w"
+var (
+	ErrPrivateKeyNotRSA     = errors.New("key is not a valid RSA private key")
+	ErrDecryptEmptyLink     = errors.New("cannot decrypt an empty link")
+	ErrInvalidLinkFormat    = errors.New("link format is invalid")
+	ErrDecryptBadData       = errors.New("failed to decrypt data with any available key fallback")
+	ErrEncryptedDataIsEmpty = errors.New("encrypted payload cannot be empty")
 )
 
 type Engine struct {
@@ -104,7 +102,7 @@ func New() (*Engine, error) {
 			}
 			rsaKey, ok := key.(*rsa.PrivateKey)
 			if !ok {
-				return nil, fmt.Errorf("version key %s %w", versionMap[idx], errors.New(ErrPrivateKeyNotRSA))
+				return nil, fmt.Errorf("version key %s: %w", versionMap[idx], ErrPrivateKeyNotRSA)
 			}
 			priv = rsaKey
 		}
@@ -117,7 +115,7 @@ func New() (*Engine, error) {
 
 func (p *Engine) Decrypt(link string) (Result, error) {
 	if link == "" {
-		return Result{}, errors.New(ErrDecryptEmptyLink)
+		return Result{}, ErrDecryptEmptyLink
 	}
 
 	version, encryptedData, err := p.parseLink(link)
@@ -143,17 +141,17 @@ func (p *Engine) Decrypt(link string) (Result, error) {
 		}
 	}
 
-	return Result{}, errors.New(ErrDecryptBadData)
+	return Result{}, ErrDecryptBadData
 }
 
 func decryptCrypt1to4(encryptedB64 string, privateKey *rsa.PrivateKey) (string, error) {
 	if encryptedB64 == "" {
-		return "", errors.New(ErrEncryptedDataIsEmpty)
+		return "", ErrEncryptedDataIsEmpty
 	}
 
 	cipherBytes, err := b64DecodeUrlSafe(encryptedB64)
 	if err != nil {
-		return "", fmt.Errorf(ErrB64Decode, err)
+		return "", fmt.Errorf("base64 decode failed: %w", err)
 	}
 
 	keySize := (privateKey.N.BitLen() + 7) / 8
@@ -166,7 +164,7 @@ func decryptCrypt1to4(encryptedB64 string, privateKey *rsa.PrivateKey) (string, 
 		chunk := cipherBytes[i : i+keySize]
 		decryptedChunk, err := rsa.DecryptPKCS1v15(nil, privateKey, chunk)
 		if err != nil {
-			return "", fmt.Errorf(ErrRSADecode, err)
+			return "", fmt.Errorf("rsa decryption failed: %w", err)
 		}
 		plaintext = append(plaintext, decryptedChunk...)
 	}
@@ -189,7 +187,7 @@ func b64DecodeUrlSafe(s string) ([]byte, error) {
 func (p *Engine) parseLink(link string) (string, string, error) {
 	matches := p.linkRegex.FindStringSubmatch(link)
 	if matches == nil {
-		return "", "", errors.New(ErrInvalidLinkFormat)
+		return "", "", ErrInvalidLinkFormat
 	}
 	return matches[1], matches[2], nil
 }

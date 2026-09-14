@@ -3,6 +3,7 @@ package impl
 import (
 	"Pantegnos/internal/modules"
 	"bytes"
+	"cmp"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -119,10 +120,9 @@ func walkJSON(v any, uris *[]string) {
 
 func loadBlobs(raw []byte) ([][]byte, error) {
 	text := strings.TrimSpace(string(raw))
-	tokens := strings.Split(text, ",")
 
 	var blobs [][]byte
-	for _, tok := range tokens {
+	for tok := range strings.SplitSeq(text, ",") {
 		tok = strings.TrimSpace(tok)
 		if tok == "" {
 			continue
@@ -138,7 +138,7 @@ func loadBlobs(raw []byte) ([][]byte, error) {
 
 func shiftRowsLike(b [16]byte) [16]byte {
 	var out [16]byte
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		out[i] = b[shiftOrder[i]]
 	}
 	return out
@@ -148,10 +148,10 @@ func coreTransform(block [16]byte) [16]byte {
 	buf := block
 
 	iB := nr - 1
-	for i10 := 0; i10 < iB; i10++ {
+	for range iB {
 		buf = shiftRowsLike(buf)
 
-		for i11 := 0; i11 < 4; i11++ {
+		for i11 := range 4 {
 			i13 := i11 * 4
 			i14, i15, i16 := i13+1, i13+2, i13+3
 
@@ -161,7 +161,7 @@ func coreTransform(block [16]byte) [16]byte {
 			iC4 := tyBoxes[i16][buf[i16]]
 
 			//buf[i13+i17] for i17 in 0..3 ---
-			for i17 := 0; i17 < 4; i17++ {
+			for i17 := range 4 {
 				i18 := (i11 * 24) + (i17 * 6)
 				i19 := i17 * 8
 				i20 := uint(28 - i19)
@@ -189,7 +189,7 @@ func coreTransform(block [16]byte) [16]byte {
 			iC7 := mbl[i15][buf[i15]]
 			iC8 := mbl[i16][buf[i16]]
 
-			for i27 := 0; i27 < 4; i27++ {
+			for i27 := range 4 {
 				i28 := (i11 * 24) + (i27 * 6)
 				i29 := i27 * 8
 				i30 := uint(28 - i29)
@@ -217,7 +217,7 @@ func coreTransform(block [16]byte) [16]byte {
 	}
 
 	buf = shiftRowsLike(buf)
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		buf[i] = tboxesLast[i][buf[i]]
 	}
 
@@ -230,10 +230,7 @@ func ctrCrypt(nonce [16]byte, data []byte) []byte {
 	for off := 0; off < len(data); off += 16 {
 		keystream := coreTransform(counter)
 		ctrIncrement(&counter)
-		block := data[off:]
-		if len(block) > 16 {
-			block = block[:16]
-		}
+		block := data[off:min(len(data), off+16)]
 		dst := out[off:]
 		for i, b := range block {
 			dst[i] = b ^ keystream[i]
@@ -348,16 +345,10 @@ func wsHost(headers map[string]string) string {
 
 func buildStreamQuery(ss *streamSettingsT) url.Values {
 	q := url.Values{}
-	network := ss.Network
-	if network == "" {
-		network = "tcp"
-	}
+	network := cmp.Or(ss.Network, "tcp")
 	q.Set("type", network)
 
-	security := ss.Security
-	if security == "" {
-		security = "none"
-	}
+	security := cmp.Or(ss.Security, "none")
 	q.Set("security", security)
 
 	switch network {
@@ -459,11 +450,7 @@ func vlessURI(vs vnextSettingsT, ss *streamSettingsT, remarks string) (string, e
 	u := v.Users[0]
 
 	q := buildStreamQuery(ss)
-	enc := u.Encryption
-	if enc == "" {
-		enc = "none"
-	}
-	q.Set("encryption", enc)
+	q.Set("encryption", cmp.Or(u.Encryption, "none"))
 	if u.Flow != "" {
 		q.Set("flow", u.Flow)
 	}
@@ -479,10 +466,7 @@ func vmessURI(vs vnextSettingsT, ss *streamSettingsT, remarks string) (string, e
 	v := vs.Vnext[0]
 	u := v.Users[0]
 
-	network := ss.Network
-	if network == "" {
-		network = "tcp"
-	}
+	network := cmp.Or(ss.Network, "tcp")
 
 	tlsFlag := ""
 	if ss.Security == "tls" || ss.Security == "reality" {
@@ -625,10 +609,7 @@ func extractURIsFromConfig(pt []byte) ([]string, error) {
 			continue
 		}
 
-		remarks := cfg.Remarks
-		if remarks == "" {
-			remarks = hdr.Tag
-		}
+		remarks := cmp.Or(cfg.Remarks, hdr.Tag)
 		uri, err := outboundToURI(hdr.Protocol, hdr.Settings, hdr.StreamSettings, remarks)
 		if err != nil {
 			continue
@@ -639,7 +620,7 @@ func extractURIsFromConfig(pt []byte) ([]string, error) {
 }
 
 func matchesCharset(s string, table [256]bool) bool {
-	for i := 0; i < len(s); i++ {
+	for i := range len(s) {
 		if !table[s[i]] {
 			return false
 		}
@@ -648,7 +629,7 @@ func matchesCharset(s string, table [256]bool) bool {
 }
 
 func isHexString(s string) bool {
-	for i := 0; i < len(s); i++ {
+	for i := range len(s) {
 		if !hexTable[s[i]] {
 			return false
 		}
@@ -689,7 +670,7 @@ func init() {
 }
 
 func decodeOne(text string) ([]byte, error) {
-	text = strings.Replace(text, "NPVT1", "", -1)
+	text = strings.ReplaceAll(text, "NPVT1", "")
 	text = strings.Join(strings.Fields(text), "")
 	if text == "" {
 		return nil, fmt.Errorf("empty token")

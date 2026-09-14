@@ -26,9 +26,8 @@ func init() {
 				return modules.Result{}, fmt.Errorf("base64 decode: %v", err)
 			}
 
-			hasher := sha1.New()
-			hasher.Write([]byte(HatImportKey))
-			derivedKey := hasher.Sum(nil)[:16]
+			keyDigest := sha1.Sum([]byte(HatImportKey))
+			derivedKey := keyDigest[:16]
 
 			plaintext, err := decryptAESECB(ciphertext, derivedKey)
 			if err != nil {

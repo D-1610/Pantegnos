@@ -3,6 +3,7 @@ package impl
 import (
 	"Pantegnos/internal/modules"
 	"bytes"
+	"cmp"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha256"
@@ -13,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"unicode/utf16"
 
@@ -37,7 +39,7 @@ var (
 		{0x33, 0x7a, 0x10, 0x35, 0xaa, 0xed, 0xf3, 0x45, 0x8c, 0xa1, 0x67, 0xe9, 0x2d, 0x74, 0xb8, 0x39},
 	}
 
-	allIVs         = append(append([][]byte{}, SideIvs...), StandardIvs...)
+	allIVs         = slices.Concat(SideIvs, StandardIvs)
 	CustomAlphabet = "RkLC2QaVMPYgGJW/A4f7qzDb9e+t6Hr0Zp8OlNyjuxKcTw1o5EIimhBn3UvdSFXs"
 	customEncoding = base64.NewEncoding(CustomAlphabet)
 )
@@ -165,13 +167,13 @@ func nativeXxteaDecrypt(data []byte, key []byte) []byte {
 	k := make([]uint32, 4)
 	paddedKey := make([]byte, 16)
 	copy(paddedKey, key)
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		k[i] = binary.LittleEndian.Uint32(paddedKey[i*4 : (i+1)*4])
 	}
 
 	n := len(data) / 4
 	v := make([]uint32, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		v[i] = binary.LittleEndian.Uint32(data[i*4 : (i+1)*4])
 	}
 
@@ -195,9 +197,9 @@ func nativeXxteaDecrypt(data []byte, key []byte) []byte {
 		sumVal = (sumVal - delta) & 0xffffffff
 	}
 
-	decrypted := make([]byte, n*4)
-	for i := 0; i < n; i++ {
-		binary.LittleEndian.PutUint32(decrypted[i*4:(i+1)*4], v[i])
+	decrypted := make([]byte, 0, n*4)
+	for _, x := range v {
+		decrypted = binary.LittleEndian.AppendUint32(decrypted, x)
 	}
 
 	length := v[n-1]
@@ -244,7 +246,7 @@ func parseEhiBytes(fileBytes []byte) ([]byte, error) {
 	return payload, nil
 }
 
-func pyStr(v interface{}) string {
+func pyStr(v any) string {
 	switch t := v.(type) {
 	case nil:
 		return ""
@@ -265,7 +267,7 @@ func pyStr(v interface{}) string {
 	}
 }
 
-func pyTruthy(v interface{}) bool {
+func pyTruthy(v any) bool {
 	switch t := v.(type) {
 	case nil:
 		return false
@@ -295,7 +297,7 @@ var masterKeyFields = []struct {
 	{"configLockMobileOperatorId", false},
 }
 
-func generateMasterKey(config map[string]interface{}) []byte {
+func generateMasterKey(config map[string]any) []byte {
 	var sb strings.Builder
 	for _, f := range masterKeyFields {
 		val, exists := config[f.key]
@@ -354,8 +356,8 @@ func hexToBytes(s string) ([]byte, error) {
 	return hex.DecodeString(s)
 }
 
-func cleanInnerFields(config map[string]interface{}, saltKey string) map[string]interface{} {
-	cleaned := make(map[string]interface{}, len(config))
+func cleanInnerFields(config map[string]any, saltKey string) map[string]any {
+	cleaned := make(map[string]any, len(config))
 	vitalKeys := map[string]bool{"overwriteServerData": true}
 
 	for k, v := range config {
@@ -382,20 +384,20 @@ func cleanInnerFields(config map[string]interface{}, saltKey string) map[string]
 	return cleaned
 }
 
-func tryNestedJsonParse(rawStr string) (interface{}, bool) {
+func tryNestedJsonParse(rawStr string) (any, bool) {
 	startIdx := strings.Index(rawStr, "{")
 	endIdx := strings.LastIndex(rawStr, "}")
 	if startIdx == -1 || endIdx == -1 || endIdx <= startIdx {
 		return nil, false
 	}
 
-	var parsedObj interface{}
+	var parsedObj any
 	if err := json.Unmarshal([]byte(rawStr[startIdx:endIdx+1]), &parsedObj); err != nil {
 		return nil, false
 	}
 
 	if strVal, ok := parsedObj.(string); ok {
-		var innerObj interface{}
+		var innerObj any
 		if err := json.Unmarshal([]byte(strVal), &innerObj); err == nil {
 			return innerObj, true
 		}
@@ -409,7 +411,7 @@ func DecryptEHI(fileBytes []byte) (string, error) {
 		return "", errors.New("failed parsing EHI structure")
 	}
 
-	var config map[string]interface{}
+	var config map[string]any
 	isBypass := false
 
 	for idx, iv := range allIVs {
@@ -454,12 +456,10 @@ func DecryptEHI(fileBytes []byte) (string, error) {
 		return "", errors.New("decryption signature mismatch across standard matrix maps")
 	}
 
-	targetSalt := "EVZJNI"
-	if s, ok := config["configSalt"].(string); ok && s != "" {
-		targetSalt = s
-	}
+	configSalt, _ := config["configSalt"].(string)
+	targetSalt := cmp.Or(configSalt, "EVZJNI")
 
-	var parsedFinal map[string]interface{}
+	var parsedFinal map[string]any
 
 	if isBypass {
 		parsedFinal = config

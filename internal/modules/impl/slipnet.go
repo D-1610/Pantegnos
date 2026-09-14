@@ -199,7 +199,7 @@ func decryptBlob(aesgcm cipher.AEAD, blobStr string) (string, error) {
 
 func decryptBundleBlob(blobStr string, password string) (string, error) {
 	cleaned := make([]byte, 0, len(blobStr))
-	for i := 0; i < len(blobStr); i++ {
+	for i := range len(blobStr) {
 		c := blobStr[i]
 		if c != '\n' && c != '\r' && c != ' ' {
 			cleaned = append(cleaned, c)
