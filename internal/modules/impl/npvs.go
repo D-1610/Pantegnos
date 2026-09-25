@@ -74,7 +74,7 @@ func parseNpvVEnvelope(b []byte) (*npvsEnvelope, error) {
 	if b[0] != 'N' || b[1] != 'P' || b[2] != 'V' || b[3] != 'S' {
 		return nil, fmt.Errorf("bad magic")
 	}
-	if b[4] > 1 {
+	if b[5] > 1 {
 		return nil, fmt.Errorf("unsupported version %d", b[4])
 	}
 
@@ -112,6 +112,9 @@ func init() {
 		Proto:     []string{"NPVS"},
 		Extension: ".npvs",
 		NeedsPassword: func(_, payload string) bool {
+			if env, err := parseNpvGen2Envelope([]byte(payload)); err == nil {
+				return env.needsPassphrase()
+			}
 			env, err := parseNpvVEnvelope([]byte(payload))
 			return err == nil && env.needsPassphrase()
 		},
@@ -120,6 +123,16 @@ func init() {
 }
 
 func decryptNPVS(req modules.Request) (modules.Result, error) {
+	if isNpvOpenEnvelope(req.Data) {
+		return decryptNPVSOpen(req)
+	}
+	if marker := npvLegacyMarkerOf(req.Data); marker != "" {
+		return modules.Result{}, fmt.Errorf("npvs: %s container is a legacy sealed export that is not supported", marker)
+	}
+	if isNpvGen2Envelope(req.Data) {
+		return decryptNPVSGen2(req)
+	}
+
 	env, err := parseNpvVEnvelope(req.Data)
 	if err != nil {
 		return modules.Result{}, err
