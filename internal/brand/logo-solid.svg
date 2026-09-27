@@ -1,4 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" role="img" aria-label="Pantegnos">
+<!--
+  An explicit intrinsic size, because an SVG with only a viewBox is rendered at
+  the browser's default 300px wherever it is dropped, which is far too large for
+  a README. Change these together when the mark needs to sit somewhere else.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="48" height="48" role="img" aria-label="Pantegnos">
   <!--
     The standalone mark: identical geometry to logo.svg with literal colours, for
     places that cannot read a stylesheet - a favicon, or a README rendered
