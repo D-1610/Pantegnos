@@ -1,0 +1,262 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+    paths:
+      - 'android/**'
+      - 'internal/mobile/**'
+      - 'internal/modules/**'
+      - 'cmd/**'
+      - 'tools/*.mjs'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'internal/mobile/**'
+      - 'internal/modules/**'
+      - 'cmd/**'
+      - 'tools/*.mjs'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Version name baked into the APK (defaults to dev)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx2560m -Dfile.encoding=UTF-8
+
+jobs:
+  build:
+    name: Build signed APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: android
+
+    outputs:
+      version_name: ${{ steps.version.outputs.version_name }}
+      version_code: ${{ steps.version.outputs.version_code }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: true
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: |
+          sdkmanager --sdk_root="${ANDROID_HOME}" \
+            --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          yes | sdkmanager --sdk_root="${ANDROID_HOME}" --licenses > /dev/null || true
+          echo "ANDROID_HOME=${ANDROID_HOME}" >> "$GITHUB_ENV"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+
+      # Contributors on Windows cannot record the executable bit, so make the
+      # wrapper runnable here instead of relying on the committed file mode.
+      - name: Make the Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Resolve version
+        id: version
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.version_name }}" ]; then
+            version_name="${{ inputs.version_name }}"
+          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            version_name="${GITHUB_REF_NAME#v}"
+          elif [ -n "${GITHUB_SHA}" ]; then
+            # An untagged build is identified by its commit, like Go's own
+            # build info does for untagged builds.
+            version_name="0.0.0-${GITHUB_SHA::8}"
+          else
+            version_name="dev"
+          fi
+          # A whitespace-only or unresolved value must never reach the build.
+          version_name="$(printf '%s' "${version_name}" | tr -d '[:space:]')"
+          case "${version_name}" in
+            ""|null|dev) version_name="dev" ;;
+          esac
+          version_code="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
+          echo "version_name=${version_name}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${version_code}" >> "$GITHUB_OUTPUT"
+          echo "Building Pantegnos ${version_name} (${version_code})"
+          echo "version_name=${version_name}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${version_code}" >> "$GITHUB_OUTPUT"
+          echo "Building Pantegnos ${version_name} (${version_code})"
+
+      # The application is Go: ./cmd/mobile is the whole interface, compiled to
+      # js/wasm. Staging it here fails the job in seconds rather than after the
+      # Android SDK is downloaded; the Gradle task re-checks it as a build input.
+      - name: Build and stage the Go application
+        working-directory: .
+        run: |
+          set -euo pipefail
+          go vet ./internal/... ./cmd/...
+          go test ./internal/...
+          mkdir -p android/app/src/main/assets
+          GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" \
+            -o android/app/src/main/assets/pantegnos.wasm ./cmd/mobile
+          cp internal/mobile/index.html android/app/src/main/assets/index.html
+          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" android/app/src/main/assets/wasm_exec.js
+
+      # The browser build is a separate artefact, so publish-target it into web/
+      # and smoke test it there; the app itself is covered by mobile-smoke.mjs.
+      - name: Build and stage the browser core
+        working-directory: .
+        run: |
+          set -euo pipefail
+          GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" \
+            -o web/pantegnos.wasm ./cmd/wasm
+          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web/
+
+      - name: Smoke test the browser core
+        working-directory: .
+        run: node tools/engine-smoke.mjs
+
+      - name: Smoke test the Go interface
+        working-directory: .
+        run: node tools/mobile-smoke.mjs
+
+      - name: Resolve signing material
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/signing"
+          keystore="$RUNNER_TEMP/signing/pantegnos.jks"
+
+          if [ -n "${KEYSTORE_BASE64}" ]; then
+            printf '%s' "${KEYSTORE_BASE64}" | base64 -d > "${keystore}"
+            echo "Using the repository upload key from secrets."
+            store_password="${KEYSTORE_PASSWORD}"
+            key_alias="${KEY_ALIAS:-pantegnos}"
+            key_password="${KEY_PASSWORD:-${KEYSTORE_PASSWORD}}"
+          else
+            store_password="pantegnos-ci"
+            key_alias="pantegnos"
+            key_password="pantegnos-ci"
+            keytool -genkeypair -v \
+              -keystore "${keystore}" \
+              -storetype JKS \
+              -storepass "${store_password}" \
+              -keypass "${key_password}" \
+              -alias "${key_alias}" \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Pantegnos CI, OU=Continuous Integration, O=FrontierTM, C=US" \
+              > /dev/null
+            echo "No KEYSTORE_BASE64 secret found: generated an ephemeral CI key."
+          fi
+
+          {
+            echo "keystore=${keystore}"
+            echo "store_password=${store_password}"
+            echo "key_alias=${key_alias}"
+            echo "key_password=${key_password}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Assemble APKs
+        run: |
+          ./gradlew --no-daemon --stacktrace \
+            :app:assembleDebug :app:assembleRelease \
+            -PversionName="${{ steps.version.outputs.version_name }}" \
+            -PversionCode="${{ steps.version.outputs.version_code }}" \
+            -PPANTEGNOS_KEYSTORE="${{ steps.signing.outputs.keystore }}" \
+            -PPANTEGNOS_STORE_PASSWORD="${{ steps.signing.outputs.store_password }}" \
+            -PPANTEGNOS_KEY_ALIAS="${{ steps.signing.outputs.key_alias }}" \
+            -PPANTEGNOS_KEY_PASSWORD="${{ steps.signing.outputs.key_password }}"
+
+      - name: Collect artifacts
+        env:
+          VERSION: ${{ steps.version.outputs.version_name }}
+        run: |
+          set -euo pipefail
+          rm -rf dist && mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/pantegnos-${VERSION}-release.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/pantegnos-${VERSION}-debug.apk"
+          cp app/build/outputs/mapping/release/mapping.txt dist/mapping.txt 2>/dev/null || true
+          cp app/build/reports/lint-results-debug.html dist/lint-report.html 2>/dev/null || true
+          ( cd dist && sha256sum ./*.apk > checksums.txt )
+          ls -la dist
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: pantegnos-apk-${{ steps.version.outputs.version_name }}
+          path: android/dist/
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Attach APK to the GitHub release
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download APKs
+        uses: actions/download-artifact@v4
+        with:
+          name: pantegnos-apk-${{ needs.build.outputs.version_name }}
+          path: dist
+
+      - name: Upload to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            dist/*.apk
+            dist/checksums.txt
+          fail_on_unmatched_files: true
+          body: |
+            ### Pantegnos ${{ needs.build.outputs.version_name }} — Android
+
+            | Artifact | Notes |
+            | --- | --- |
+            | `pantegnos-${{ needs.build.outputs.version_name }}-release.apk` | Minified, resource-shrunk, signed |
+            | `pantegnos-${{ needs.build.outputs.version_name }}-debug.apk` | Debuggable build for testing |
+            | `checksums.txt` | SHA-256 of every APK |
+
+            Install the release APK on a device running Android 8.0 (API 26) or newer.
+            The app declares no permissions, so it works fully offline.

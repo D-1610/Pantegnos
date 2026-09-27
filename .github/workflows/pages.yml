@@ -32,12 +32,26 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # `git describe` needs tags to resolve a version for non-tag builds.
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           check-latest: true
+
+      # The checked-in copies in web/ keep local `python -m http.server` working;
+      # refresh them from the canonical asset so a deploy can never publish a
+      # stale mark. `go test ./internal/brand` fails if they disagree.
+      - name: Sync the brand assets
+        run: |
+          set -euo pipefail
+          cp internal/brand/logo.svg web/logo.svg
+          cp internal/brand/icon-32.png web/favicon-32.png
+          cp internal/brand/icon-192.png web/favicon-192.png
+          go test ./internal/brand
 
       - name: Build WASM bundle
         run: |
@@ -48,6 +62,25 @@ jobs:
             WASM_EXEC="$(go env GOROOT)/misc/wasm/wasm_exec.js"
           fi
           cp "$WASM_EXEC" web/wasm_exec.js
+
+      # The page reads its version from this file rather than having one baked
+      # into the markup. A tag gives the release name, anything else the commit,
+      # and an unresolved value is written as the literal "dev" so the badge
+      # never renders empty.
+      - name: Write the version
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            version="${GITHUB_REF_NAME}"
+          else
+            version="$(git describe --tags --always 2>/dev/null || true)"
+          fi
+          version="${version:-dev}"
+          if [ -z "${version}" ] || [ "${version}" = "null" ]; then
+            version="dev"
+          fi
+          printf '%s\n' "${version}" > web/version.txt
+          echo "Publishing web version: ${version}"
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>Pantegnos</title>
+<style>html,body{margin:0;padding:0;background:#120c08}</style>
+</head>
+<body>
+<!--
+  Pantegnos Android shell.
+
+  Deliberately tiny: it loads the Go runtime, boots internal/mobile and stops
+  touching the page. The interface, the queue and the strings are all produced
+  by Go, which is why this file has no application logic in it.
+
+  The page is served from a virtual https origin by WebViewAssetLoader, so
+  relative fetches resolve to assets/pantegnos.wasm and assets/wasm_exec.js.
+  Nothing else can load: the WebView client refuses every other URL, and the app
+  declares no INTERNET permission.
+-->
+<script src="wasm_exec.js"></script>
+<script>
+(function () {
+  "use strict";
+  var status = document.createElement("pre");
+  status.style.cssText =
+    "position:fixed;inset:0;display:grid;place-items:center;color:#a89483;" +
+    "font:13px system-ui,sans-serif;text-align:center;padding:24px";
+  document.body.appendChild(status);
+
+  function fail(message) {
+    status.textContent = message;
+  }
+
+  // go.run() is asynchronous: the Go program registers pantegnosBoot from
+  // inside its main function, which does not necessarily happen before the
+  // call returns. Wait for the export instead of assuming it is there.
+  function boot(tries) {
+    if (typeof globalThis.pantegnosBoot === "function") {
+      globalThis.pantegnosBoot();
+      return;
+    }
+    if (tries <= 0) {
+      fail("The Go module did not start.");
+      return;
+    }
+    setTimeout(function () { boot(tries - 1); }, 20);
+  }
+
+  fetch("pantegnos.wasm", { cache: "no-store" })
+    .then(function (response) {
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      return response.arrayBuffer();
+    })
+    .then(function (bytes) {
+      status.remove();
+      var go = new Go();
+      return WebAssembly.instantiate(bytes, go.importObject).then(function (result) {
+        go.run(result.instance);
+        boot(250);
+      });
+    })
+    .catch(function (err) { fail("Engine failed to start: " + err); });
+})();
+</script>
+</body>
+</html>

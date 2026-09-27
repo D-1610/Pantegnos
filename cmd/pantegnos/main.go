@@ -12,13 +12,16 @@ import (
 	"github.com/muesli/termenv"
 	"golang.org/x/term"
 
+	"Pantegnos/internal/buildinfo"
 	"Pantegnos/internal/modules"
 	"Pantegnos/internal/utils"
 
 	_ "Pantegnos/internal/modules/impl"
 )
 
-// version is set by goreleaser via -ldflags "-X main.version=...".
+// version is set by goreleaser via -ldflags "-X main.version=...". A build
+// that supplies nothing, an empty value, or a nil rendered by a template engine
+// all display as "dev"; see internal/buildinfo.
 var version = "dev"
 
 var (
@@ -26,18 +29,19 @@ var (
 	outputDir = flag.String("output", "output", "directory to save decrypted files")
 )
 
-const banner = `
-██████╗  █████╗ ███╗   ██╗████████╗███████╗ ██████╗ ███╗   ██╗ ██████╗ ███████╗
+const banner = ` ██████╗  █████╗ ███╗   ██╗████████╗███████╗ ██████╗ ███╗   ██╗ ██████╗ ███████╗
 ██╔══██╗██╔══██╗████╗  ██║╚══██╔══╝██╔════╝██╔════╝ ████╗  ██║██╔═══██╗██╔════╝
 ██████╔╝███████║██╔██╗ ██║   ██║   █████╗  ██║  ███╗██╔██╗ ██║██║   ██║███████╗
 ██╔═══╝ ██╔══██║██║╚██╗██║   ██║   ██╔══╝  ██║   ██║██║╚██╗██║██║   ██║╚════██║
 ██║     ██║  ██║██║ ╚████║   ██║   ███████╗╚██████╔╝██║ ╚████║╚██████╔╝███████║
 ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝ ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝ ╚══════╝
-                                                              (c) 2026 KernelDotDLL`
+  %s · on-device decryptor for VPN / proxy configs
+
+  (c) 2026 KernelDotDLL`
 
 const disclaimer = `
   ┌───────────────────────────────────────────────────────────────────────┐
-  │ PANTEGNOS :: Multi-Config Decryptor v%-32s                            │
+  │ PANTEGNOS :: Multi-Config Decryptor %-33s                            │
   ├───────────────────────────────────────────────────────────────────────┤
   │ SUPPORTED: .slip  .ehi  .dark  .hat  .npvt  .npvs  .nm  .happ         │
   ├───────────────────────────────────────────────────────────────────────┤
@@ -91,8 +95,13 @@ func printBanner() {
 	terminal := termenv.NewOutput(os.Stdout)
 	terminal.ClearScreen()
 	terminal.DisableMouse()
-	fmt.Println(utils.ColorizeGradientText(banner, colorgrad.Oranges()))
-	fmt.Println(utils.ColorizeGradientText(fmt.Sprintf(disclaimer, version), colorgrad.Reds()))
+
+	// An unversioned build shows "dev" rather than an empty gap. Display adds the
+	// "v" prefix, and the disclaimer box pads to a fixed width.
+	tag := buildinfo.Display(version)
+
+	fmt.Println(utils.ColorizeGradientText(fmt.Sprintf(banner, tag), colorgrad.Oranges()))
+	fmt.Println(utils.ColorizeGradientText(fmt.Sprintf(disclaimer, tag), colorgrad.Reds()))
 }
 
 func fatal(format string, args ...any) {

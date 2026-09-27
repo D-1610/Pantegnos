@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" role="img" aria-label="Pantegnos">
+  <!--
+    The Pantegnos mark: a hexagonal frame around a lock with a keyhole.
+
+    This file is the single source of truth. The geometry and the 108 unit
+    viewBox match android/app/src/main/res/drawable/ic_launcher_foreground.xml
+    exactly, which is what the launcher, the browser tab, the web header and the
+    Windows binary all show. internal/brand/brand_test.go fails if the two files
+    ever drift apart, and if web/logo.svg stops matching this one.
+
+    Colours are custom properties so a single file themes itself from whichever
+    page embeds it; internal/brand/logo-solid.svg has them baked in for places
+    that cannot read a stylesheet, such as a favicon.
+  -->
+  <defs>
+    <linearGradient id="pg" x1="28" y1="26" x2="80" y2="82" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="var(--grad-a, #ffd9a0)"/>
+      <stop offset="0.45" stop-color="var(--grad-mid, #ff9e3d)"/>
+      <stop offset="1" stop-color="var(--grad-b, #ff6b1a)"/>
+    </linearGradient>
+  </defs>
+  <path fill-rule="evenodd"
+        d="M54,27 L77.38,40.5 L77.38,67.5 L54,81 L30.62,67.5 L30.62,40.5 Z M54,33.5 L36.25,43.75 L36.25,64.25 L54,74.5 L71.75,64.25 L71.75,43.75 Z"
+        fill="url(#pg)"/>
+  <path fill-rule="evenodd"
+        d="M54,41 a12,12 0 1,0 0,24 a12,12 0 1,0 0,-24 Z M54,46.6 a3.4,3.4 0 1,0 0,6.8 a3.4,3.4 0 1,0 0,-6.8 Z M54,52.4 L57.2,63.5 L50.8,63.5 Z"
+        fill="url(#pg)"/>
+</svg>

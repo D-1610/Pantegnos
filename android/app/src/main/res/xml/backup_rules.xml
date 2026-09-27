@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Include-only ruleset: without an <include> for a domain, nothing from that
+    domain is backed up. Decrypted configs never reach disk outside the app's
+    cache, so the only thing worth restoring is the UI preferences.
+-->
+<full-backup-content>
+    <include
+        domain="sharedpref"
+        path="pantegnos_prefs.xml" />
+</full-backup-content>

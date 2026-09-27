@@ -4,8 +4,9 @@
 //
 // Exports on the JS global object:
 //
-//	pantegnosDecrypt(fileName, data, password) → {ok, text, fileName} | {ok, error}
+//	pantegnosDecrypt(fileName, data, password) → {ok, text, fileName, module, apkAuthor} | {ok, error}
 //	pantegnosNeedsPassword(fileName, data) → boolean
+//	pantegnosInspect(fileName, data) → {ok, module, proto, apkAuthor, needsPassword} | {ok, error}
 //
 // where data is a Uint8Array of the raw file bytes.
 package main
@@ -28,6 +29,7 @@ func main() {
 	g := js.Global()
 	g.Set("pantegnosDecrypt", js.FuncOf(wsDecrypt))
 	g.Set("pantegnosNeedsPassword", js.FuncOf(wsNeedsPassword))
+	g.Set("pantegnosInspect", js.FuncOf(wsInspect))
 	select {}
 }
 
@@ -57,9 +59,35 @@ func wsDecrypt(_ js.Value, args []js.Value) any {
 	}
 
 	return map[string]any{
-		"ok":       true,
-		"text":     result.Text,
-		"fileName": result.FileName,
+		"ok":        true,
+		"text":      result.Text,
+		"fileName":  result.FileName,
+		"module":    mod.Name,
+		"apkAuthor": mod.ApkAuthor,
+	}
+}
+
+func wsInspect(_ js.Value, args []js.Value) any {
+	if len(args) < 2 {
+		return fail(errBadCall)
+	}
+
+	mod, proto, payload := modules.Lookup(args[0].String(), copyBytes(args[1]))
+	if mod == nil {
+		return fail(errNoModule)
+	}
+
+	needs := false
+	if mod.NeedsPassword != nil {
+		needs = mod.NeedsPassword(proto, payload)
+	}
+
+	return map[string]any{
+		"ok":            true,
+		"module":        mod.Name,
+		"apkAuthor":     mod.ApkAuthor,
+		"proto":         proto,
+		"needsPassword": needs,
 	}
 }
 

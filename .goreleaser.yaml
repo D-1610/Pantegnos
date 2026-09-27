@@ -20,7 +20,9 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -w -X main.version={{.Version}}
+      # -trimpath removes the symbol table, which breaks `go version` in the
+      # binary, so trimpath has to be a separate flag as above.
+      - -s -w -X main.version={{ if .Tag }}{{ .Tag }}{{ else }}dev{{ end }}
 
 archives:
   - id: pantegnos-cli

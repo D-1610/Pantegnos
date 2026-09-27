@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Decrypted configs staged here are the only files ever shared, and they
+         are rewritten on every share and removed when the app is killed. -->
+    <cache-path
+        name="shared"
+        path="shared/" />
+</paths>

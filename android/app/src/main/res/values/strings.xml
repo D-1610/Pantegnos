@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        The interface is rendered by Go, so the only string Android itself needs
+        is the launcher label. A brand name, so it is not translated.
+    -->
+    <string name="app_name" translatable="false">Pantegnos</string>
+    <string name="action_share" translatable="false">Share</string>
+</resources>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mirrors the web decryptor's light palette so both front-ends feel like
+         the same product. The Compose theme owns the real colour maths; these
+         values only paint the window before the first frame. -->
+    <color name="window_background">#FFF7F2EA</color>
+</resources>

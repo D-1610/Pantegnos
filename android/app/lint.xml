@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!--
+        `mipmap-anydpi-v26` is the only layout aapt2 will resolve `android:icon`
+        from: a bare `mipmap-anydpi` folder compiles but is skipped when the
+        manifest references the icon, which fails the resource link step with
+        "resource mipmap/ic_launcher not found". minSdk is already 26, so lint's
+        suggestion to merge the folders is not applicable here.
+    -->
+    <issue id="ObsoleteSdkInt">
+        <ignore path="src/main/res/mipmap-anydpi-v26" />
+    </issue>
+
+    <!-- The theme picks light or dark; the platform theme is not a day/night pair. -->
+    <issue id="UnusedAttribute">
+        <ignore path="src/main/AndroidManifest.xml" />
+    </issue>
+</lint>

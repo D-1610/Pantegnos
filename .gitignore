@@ -3,9 +3,26 @@
 /out/
 /output/
 
-# Local WASM build artifacts (produced by CI for GitHub Pages)
+# Local WASM build artifacts (produced by CI for GitHub Pages and for the Android app)
 /web/pantegnos.wasm
 /web/wasm_exec.js
+# Version stamp written by the Pages workflow; the page falls back to "dev"
+/web/version.txt
+/android/app/src/main/assets/pantegnos.wasm
+/android/app/src/main/assets/wasm_exec.js
+# Copied from internal/mobile by the stageShell Gradle task
+/android/app/src/main/assets/index.html
+
+# Android
+/android/local.properties
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/keystore/
+*.apk
+*.aab
+*.keystore
+*.jks
 
 # IDE
 .idea/
