@@ -8,7 +8,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -265,7 +267,11 @@ type realitySettingsT struct {
 }
 
 type wsSettingsT struct {
-	Path    string            `json:"path"`
+	Path string `json:"path"`
+	// Host is how NPV Tunnel stores the WebSocket Host header. It is a
+	// sibling of headers rather than an entry inside them, so it must be
+	// read on its own or domain-fronted profiles lose it entirely.
+	Host    string            `json:"host"`
 	Headers map[string]string `json:"headers"`
 }
 
@@ -336,11 +342,25 @@ type serversSettingsT struct {
 	Servers []serverEntryT `json:"servers"`
 }
 
-func wsHost(headers map[string]string) string {
-	if h, ok := headers["Host"]; ok && h != "" {
+// wsHost returns the WebSocket Host header, preferring the top-level host
+// field that NPV Tunnel writes and falling back to the headers map that plain
+// v2ray configs use. Losing it breaks the upgrade for domain-fronted profiles,
+// where host= must differ from the TLS SNI.
+func wsHost(ws *wsSettingsT) string {
+	if ws.Host != "" {
+		return ws.Host
+	}
+	if h, ok := ws.Headers["Host"]; ok && h != "" {
 		return h
 	}
-	return headers["host"]
+	return ws.Headers["host"]
+}
+
+// hostPort joins an address and port so that bare IPv6 literals stay
+// parseable. Brackets already present on the address are stripped first so
+// they are not doubled up by JoinHostPort.
+func hostPort(addr string, port int) string {
+	return net.JoinHostPort(strings.Trim(addr, "[]"), strconv.Itoa(port))
 }
 
 func buildStreamQuery(ss *streamSettingsT) url.Values {
@@ -357,7 +377,7 @@ func buildStreamQuery(ss *streamSettingsT) url.Values {
 			if ss.WSSettings.Path != "" {
 				q.Set("path", ss.WSSettings.Path)
 			}
-			if h := wsHost(ss.WSSettings.Headers); h != "" {
+			if h := wsHost(ss.WSSettings); h != "" {
 				q.Set("host", h)
 			}
 		}
@@ -455,8 +475,8 @@ func vlessURI(vs vnextSettingsT, ss *streamSettingsT, remarks string) (string, e
 		q.Set("flow", u.Flow)
 	}
 
-	return fmt.Sprintf("vless://%s@%s:%d?%s#%s",
-		u.Id, v.Address, v.Port, q.Encode(), url.PathEscape(remarks)), nil
+	return fmt.Sprintf("vless://%s@%s?%s#%s",
+		u.Id, hostPort(v.Address, v.Port), q.Encode(), url.PathEscape(remarks)), nil
 }
 
 func vmessURI(vs vnextSettingsT, ss *streamSettingsT, remarks string) (string, error) {
@@ -478,7 +498,7 @@ func vmessURI(vs vnextSettingsT, ss *streamSettingsT, remarks string) (string, e
 	case "ws":
 		if ss.WSSettings != nil {
 			path = ss.WSSettings.Path
-			host = wsHost(ss.WSSettings.Headers)
+			host = wsHost(ss.WSSettings)
 		}
 	case "grpc":
 		if ss.GRPCSettings != nil {
@@ -533,8 +553,8 @@ func trojanURI(ts serversSettingsT, ss *streamSettingsT, remarks string) (string
 	if s.Flow != "" {
 		q.Set("flow", s.Flow)
 	}
-	return fmt.Sprintf("trojan://%s@%s:%d?%s#%s",
-		url.PathEscape(s.Password), s.Address, s.Port, q.Encode(), url.PathEscape(remarks)), nil
+	return fmt.Sprintf("trojan://%s@%s?%s#%s",
+		url.PathEscape(s.Password), hostPort(s.Address, s.Port), q.Encode(), url.PathEscape(remarks)), nil
 }
 
 func shadowsocksURI(ts serversSettingsT, remarks string) (string, error) {
@@ -543,7 +563,7 @@ func shadowsocksURI(ts serversSettingsT, remarks string) (string, error) {
 	}
 	s := ts.Servers[0]
 	userInfo := base64.StdEncoding.EncodeToString([]byte(s.Method + ":" + s.Password))
-	return fmt.Sprintf("ss://%s@%s:%d#%s", userInfo, s.Address, s.Port, url.PathEscape(remarks)), nil
+	return fmt.Sprintf("ss://%s@%s#%s", userInfo, hostPort(s.Address, s.Port), url.PathEscape(remarks)), nil
 }
 
 func outboundToURI(protocol string, settingsRaw, streamRaw json.RawMessage, remarks string) (string, error) {
