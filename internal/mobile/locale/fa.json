@@ -30,6 +30,7 @@
   "drop_title": "فایل پیکربندی را انتخاب کنید",
   "engine_boot": "در حال بارگذاری موتور رمزگشایی…",
   "engine_ready": "موتور آماده است",
+  "format_bpf": "پروفایل sing-box — ظرف gzip، بدون رمز",
   "format_dark": "DarkTunnel — AES-CFB-256 و MessagePack",
   "format_ehi": "HTTP Injector — مشتق‌کلید Argon2id و XChaCha20-Poly1305",
   "format_happ": "پروکسی Happ — پوشهٔ کلید خصوصی RSA",

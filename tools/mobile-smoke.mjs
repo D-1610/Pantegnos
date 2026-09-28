@@ -126,6 +126,7 @@ globalThis.PantegnosHost = {
     "Recognised extensions",
     ".slip",
     ".happ",
+    ".bpf",
     "Nothing to decrypt yet",
   ]) {
     if (!html.includes(needle)) fail(`markup is missing ${JSON.stringify(needle)}`);

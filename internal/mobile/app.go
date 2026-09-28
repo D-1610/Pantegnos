@@ -633,5 +633,6 @@ func supportedFormats() []FormatEntry {
 		{Ext: ".npvs", Desc: "format_npvs"},
 		{Ext: ".nm", Desc: "format_nm"},
 		{Ext: ".happ", Desc: "format_happ"},
+		{Ext: ".bpf", Desc: "format_bpf"},
 	}
 }

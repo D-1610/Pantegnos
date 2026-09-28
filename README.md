@@ -29,8 +29,26 @@ One decryption core, three front-ends: a **CLI**, an **in-browser decryptor** at
 | NpvTunnel (NapsternetV) (NPVS, AppKey embedded)   | `.npvs`   | `NPVS`                  | Custodian whitebox AES-CTR-SHA256 KDF + ChaCha20-Poly1305 (offline, no password) |
 | NetMod (Both OLD & NEW)                           | `.nm`     | `nm-*://`               | AES-ECB (fixed key)                                                              |
 | Happ Proxy                                        | `.happ`   | `happ://crypt[1-4]/`    | RSA-1024/4096 private key                                                        |
+| sing-box profile export (SFA/SFI/SFM)              | `.bpf`    | *(extension-based)*     | gzip container, no cipher (see [Notes](#notes))                                   |
 
 SlipNet profiles support schema versions 1 through 28, covering fields like VLESS, SSH tunneling, SOCKS5, DoH, SNI fragmentation, and more.
+
+## Notes
+
+`.bpf` is the one supported format that is not encrypted. It is the binary
+profile export the sing-box clients write when a profile is shared, and
+recovering it is a decompress plus a walk through a few length-prefixed fields:
+
+| Offset | Field |
+| --- | --- |
+| 0 | message type, always `0x03` (profile content) |
+| 1 | container version, 0 or 1 |
+| 2.. | gzip stream of: varint-prefixed profile name, `int32BE` profile type (0 local, 1 iCloud, 2 remote), varint-prefixed sing-box config, and for remote profiles the source URL, auto-update flag, interval (v1+) and last-updated timestamp |
+
+The output is the sing-box config re-indented, with the profile metadata in a
+`//` comment header, so it is a file `sing-box check` accepts. iCloud profiles
+are reported as unrecoverable: the clients stream their config from the
+account rather than storing it in the export.
 
 ## Web Decryptor
 
@@ -64,7 +82,7 @@ The app declares **zero permissions**: no `INTERNET`, no storage. The WebView se
 **Features**
 
 - Pick one or many config files through the system file picker, or paste a `…://` config URI from the clipboard
-- Sequential queue with per-file module identification (`.slip`, `.ehi`, `.dark`, `.hat`, `.npvt`, `.npvs`, `.nm`, `.happ`)
+- Sequential queue with per-file module identification (`.slip`, `.ehi`, `.dark`, `.hat`, `.npvt`, `.npvs`, `.nm`, `.happ`, `.bpf`)
 - Passphrase prompt with automatic retry, for `.npvs` bundles and SlipNet bundle files
 - Monospaced viewer with selectable text and a wrap/scroll toggle
 - Copy, share (as a real `.txt` file via `FileProvider`, so a VPN client can import it) or save anywhere

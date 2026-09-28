@@ -12,6 +12,7 @@
  * tools/mobile-smoke.mjs covers the app.
  */
 import { readFileSync, existsSync } from "node:fs";
+import { gzipSync } from "node:zlib";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -49,6 +50,43 @@ if (!globalThis.navigator) {
 const fail = (message) => {
   console.error(`FAIL: ${message}`);
   process.exit(1);
+};
+
+// bpfProfile assembles a .bpf container the way the sing-box clients do: a
+// message-type byte, a version byte, then a gzip stream of varint-prefixed
+// strings with an int32BE profile type. Kept here rather than read from disk so
+// the smoke test does not depend on a sample file.
+const bpfProfile = (version, { name, type, config, remotePath, autoUpdate, interval, updated }) => {
+  const parts = [];
+  const uvarint = (n) => {
+    const out = [];
+    while (n >= 0x80) {
+      out.push((n & 0x7f) | 0x80);
+      n = Math.floor(n / 128);
+    }
+    out.push(n & 0xff);
+    return out;
+  };
+  const push = (...groups) => {
+    for (const g of groups) parts.push(...g);
+  };
+  const str = (s) => {
+    const bs = Array.from(Buffer.from(s ?? "", "utf8"));
+    push(uvarint(bs.length), bs);
+  };
+  const int32 = (v) => push([(v >>> 24) & 0xff, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff]);
+
+  str(name);
+  int32(type);
+  str(config);
+  if (type === 2) {
+    str(remotePath);
+    push([autoUpdate ? 1 : 0]);
+    if (version >= 1) int32(interval ?? 0);
+    push([0, 0, 0, 0, 0, 0, 0, 0]);
+  }
+
+  return new Uint8Array([3, version, ...gzipSync(Buffer.from(parts))]);
 };
 
 (0, eval)(readFileSync(execPath, "utf8"));
@@ -119,6 +157,27 @@ if (typeof globalThis.Go !== "function") fail("wasm_exec.js did not define globa
     }
     console.log(`inspect -> ${got.module}`);
   }
+
+  // 4b. .bpf is a container, not a cipher, so it has no URI to inspect. Build
+  //     one and drive the whole round trip through the exported globals.
+  const bpf = bpfProfile(1, {
+    name: "🎨@oneclickvpnkeys",
+    type: 0,
+    config: '{"outbounds":[{"type":"vless","tag":"de","server":"198.51.100.7","server_port":443}]}',
+  });
+  const bpfInspect = globalThis.pantegnosInspect("sample.bpf", bpf);
+  console.log("inspect(.bpf) ->", JSON.stringify(bpfInspect));
+  if (bpfInspect.ok !== true || !String(bpfInspect.module).includes("sing-box")) {
+    fail(`expected the sing-box module to claim the file, got ${JSON.stringify(bpfInspect)}`);
+  }
+  if (bpfInspect.needsPassword !== false) fail("a .bpf container is not passphrase protected");
+  const bpfOut = globalThis.pantegnosDecrypt("sample.bpf", bpf, "");
+  if (bpfOut.ok !== true) fail(`a valid .bpf should decode, got ${JSON.stringify(bpfOut)}`);
+  if (bpfOut.fileName !== "sample.txt") fail(`fileName = ${bpfOut.fileName}, want sample.txt`);
+  if (!String(bpfOut.text).includes('"server": "198.51.100.7"')) {
+    fail(`decoded .bpf lost the config: ${JSON.stringify(bpfOut.text)}`);
+  }
+  console.log("decrypt() recovers a .bpf profile");
 
   // 5. The result shape the web front-end relies on, on a real payload. The
   //    profile has to carry a full schema worth of fields or the core rejects

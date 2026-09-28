@@ -30,6 +30,7 @@
   "drop_title": "Drop a config file here",
   "engine_boot": "Loading the decryption engine…",
   "engine_ready": "Engine ready",
+  "format_bpf": "sing-box profile export — gzip container, no cipher",
   "format_dark": "DarkTunnel — AES-CFB-256 + MessagePack",
   "format_ehi": "HTTP Injector — Argon2id KDF + XChaCha20-Poly1305",
   "format_happ": "Happ proxy — RSA private key envelope",
