@@ -185,13 +185,13 @@ func b64UrlNoPad(s string) ([]byte, error) {
 func decodeNpvSentinels(s string) string {
 	var sb strings.Builder
 	for {
-		i := strings.Index(s, npvSentinelPrefix)
-		if i < 0 {
+		before, after, ok := strings.Cut(s, npvSentinelPrefix)
+		if !ok {
 			sb.WriteString(s)
 			return sb.String()
 		}
-		sb.WriteString(s[:i])
-		s = s[i+len(npvSentinelPrefix):]
+		sb.WriteString(before)
+		s = after
 
 		j := 0
 		for j < len(s) && strings.IndexByte(npvSentinelAlphabet, s[j]) >= 0 {

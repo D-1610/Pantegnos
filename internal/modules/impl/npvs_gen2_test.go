@@ -1,6 +1,7 @@
 package impl
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -325,7 +326,7 @@ func TestNpvGen2RejectsTamperedConfig(t *testing.T) {
 		{"wrap", 9 + 80, "app-key wrap"},
 		{"sealed metadata", 9 + 140, "sealed metadata"},
 	} {
-		bad := append([]byte(nil), data...)
+		bad := bytes.Clone(data)
 		bad[tc.off] ^= 0xFF
 
 		env, err := parseNpvGen2Envelope(bad)

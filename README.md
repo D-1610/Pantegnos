@@ -33,39 +33,18 @@ One decryption core, three front-ends: a **CLI**, an **in-browser decryptor** at
 
 ## Supported Formats
 
-| Format                                            | Extension | Protocol                | Module                                                                           |
-|---------------------------------------------------|-----------|-------------------------|----------------------------------------------------------------------------------|
-| SlipNet (Encrypted)                               | `.slip`   | `slipnet-enc://`        | AES-256-GCM with hardcoded key                                                   |
-| SlipNet (Plaintext)                               | `.slip`   | `slipnet://`            | Base64 decode + profile parse                                                    |
-| HTTP Injector (SSH/V2ray) - Native                | `.ehi`    | *(extension-based)*     | Argon2id-KDF + XChaCha20-Poly1305 (custom-obfuscated envelope)                   |
-| DarkTunnel - SSH DNSTT V2Ray                      | `.dark`   | `darktunnel://`         | AES‑CFB‑256 -> MessagePack + AES‑CFB‑192                                         |
-| SlipNet Bundle (Password)                         | `.slip`   | `slipnet-bundle-enc://` | PBKDF2 (600k iter) + AES-GCM                                                     |
-| HA Tunnel Plus                                    | `.hat`    | *(extension-based)*     | AES-ECB (SHA1-derived key)                                                       |
-| NpvTunnel (NapsternetV) (NPVT)                    | `.npvt`   | `NPVT1`                 | Custom whitebox AES CTR                                                          |
-| NpvTunnel (NapsternetV) (NPVS) (PASSKEY PROTECTED) | `.npvs`   | `NPVS`                  | Custom PBKDF2-HMAC-SHA256 + ChaCha20-Poly1305                                    |
-| NpvTunnel (NapsternetV) (NPVS, AppKey embedded)   | `.npvs`   | `NPVS`                  | Custodian whitebox AES-CTR-SHA256 KDF + ChaCha20-Poly1305 (offline, no password) |
-| NetMod (Both OLD & NEW)                           | `.nm`     | `nm-*://`               | AES-ECB (fixed key)                                                              |
-| Happ Proxy                                        | `.happ`   | `happ://crypt[1-4]/`    | RSA-1024/4096 private key                                                        |
-| sing-box profile export (SFA/SFI/SFM)              | `.bpf`    | *(extension-based)*     | gzip container, no cipher (see [Notes](#notes))                                   |
+| Format                                   | Extension        | Protocol                                                |
+|------------------------------------------|------------------|---------------------------------------------------------|
+| SlipNet (Encrypted / Plaintext / Bundle) | `.slip`          | `slipnet://`, `slipnet-enc://`, `slipnet-bundle-enc://` |
+| HTTP Injector (SSH/V2ray) - Native       | `.ehi`           | *(extension-based)*                                     |
+| DarkTunnel - SSH DNSTT V2Ray             | `.dark`          | `darktunnel://`                                         |
+| HA Tunnel Plus                           | `.hat`           | *(extension-based)*                                     |
+| NpvTunnel (NapsternetV) (NPVT / NPVS)    | `.npvt`, `.npvs` | `NPVT1`, `NPVS`                                         |
+| NetMod (OLD & NEW)                       | `.nm`            | `nm-*://`                                               |
+| Happ Proxy                               | `.happ`          | `happ://crypt[1-5]/`                                    |
+| sing-box profile export (SFA/SFI/SFM)    | `.bpf`           | *(extension-based)*                                     |
 
 SlipNet profiles support schema versions 1 through 28, covering fields like VLESS, SSH tunneling, SOCKS5, DoH, SNI fragmentation, and more.
-
-## Notes
-
-`.bpf` is the one supported format that is not encrypted. It is the binary
-profile export the sing-box clients write when a profile is shared, and
-recovering it is a decompress plus a walk through a few length-prefixed fields:
-
-| Offset | Field |
-| --- | --- |
-| 0 | message type, always `0x03` (profile content) |
-| 1 | container version, 0 or 1 |
-| 2.. | gzip stream of: varint-prefixed profile name, `int32BE` profile type (0 local, 1 iCloud, 2 remote), varint-prefixed sing-box config, and for remote profiles the source URL, auto-update flag, interval (v1+) and last-updated timestamp |
-
-The output is the sing-box config re-indented, with the profile metadata in a
-`//` comment header, so it is a file `sing-box check` accepts. iCloud profiles
-are reported as unrecoverable: the clients stream their config from the
-account rather than storing it in the export.
 
 ## Web Decryptor
 
@@ -105,34 +84,7 @@ The app declares **zero permissions**: no `INTERNET`, no storage. The WebView se
 - Copy, share (as a real `.txt` file via `FileProvider`, so a VPN client can import it) or save anywhere
 - Light / dark / system themes, English and Persian (RTL) localisations, vector launcher icon with an Android 13+ themed variant
 
-**Responsive layout**
-
-| Viewport | Layout |
-| --- | --- |
-| Phone, portrait | Single column, edge to edge, comfortable measure |
-| Small phones (≤360dp) | Tighter gutters and furniture, subtitles allowed to wrap |
-| Landscape phones (≤560dp tall) | Compact chrome: the tagline and privacy pill drop out so the picker stays above the fold |
-| Tablets / unfolded foldables (≥1000px) | Two panes, intake left and results right, with the intake column sticky |
-| Very wide (≥1500px) | Growth stops at 1280px so lines stay readable |
-
-Type is set in `rem`, so Android's font-size accessibility setting scales the whole interface, and every edge respects `env(safe-area-inset-*)` for notches in landscape.
-
-**Layout**
-
-| Path | What it is |
-| --- | --- |
-| `cmd/mobile` | The `js/wasm` entry point; a handful of lines |
-| `internal/mobile` | The application: state machine, i18n, markup, stylesheet |
-| `internal/mobile/dom_js.go` | The only file that knows it runs in a browser (`//go:build js && wasm`) |
-| `internal/mobile/index.html` | A ~30-line shell that loads the Go module and nothing else |
-| `internal/brand` | The logo, and the tests that keep every surface showing it |
-| `android/.../MainActivity.kt` | The WebView plus the platform bridges |
-| `tools/engine-smoke.mjs` | Boots the shipped WASM and exercises every module under Node |
-| `tools/mobile-smoke.mjs` | Boots the whole Go interface against a DOM shim and drives a real action |
-| `tools/dumppage` | Writes the rendered page and stylesheet to one HTML file, for iterating on the layout in a desktop browser |
-| `tools/icon` | Rasterises the logo into the `.ico` the Windows binary embeds |
-
-Because everything except the shell is ordinary Go, the application is tested with `go test`:
+Because everything except the [`internal/mobile/index.html`](internal/mobile/index.html) shell is ordinary Go, the application is tested with `go test`:
 
 ```bash
 go test ./internal/...             # queue, i18n, rendering, passphrase flow, brand drift
@@ -155,48 +107,6 @@ Signing uses `-PPANTEGNOS_KEYSTORE=… -PPANTEGNOS_STORE_PASSWORD=… -PPANTEGNO
 **Releases**
 
 [`.github/workflows/android.yml`](.github/workflows/android.yml) runs `go vet` and `go test`, both smoke tests, then builds and signs the APKs on every push to `main`, and attaches them to the GitHub release for `v*` tags. Add the repository secrets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and `KEY_PASSWORD` to publish with your own upload key; otherwise CI generates an ephemeral one for that run.
-
-## Versioning
-
-No surface hard-codes a version. Each one receives it from the build, and anything missing, empty, or left as an unresolved template collapses to `dev`:
-
-| Surface | Source | Fallback |
-| --- | --- | --- |
-| CLI banner | goreleaser `-X main.version={{ .Tag }}` | `dev` |
-| Web decryptor | Pages workflow writes `web/version.txt` from the tag, or the commit | `dev` |
-| Android app | `android.yml` passes `-PversionName`, Gradle forwards it to `-X main.version` | `dev` |
-
-```bash
-go run ./cmd/pantegnos                       # dev
-go build -ldflags "-X main.version=1.4.2" .  # v1.4.2
-cd android && ./gradlew assembleDebug        # dev
-cd android && ./gradlew assembleDebug -PversionName=1.4.2   # v1.4.2
-```
-
-`internal/buildinfo` owns the rule, and `go test ./internal/...` covers it, including the awkward inputs a template engine can produce: `""`, whitespace, `null`, `nil`, `<nil>`, and a literal `{{.Version}}`.
-
-## Brand
-
-`internal/brand/logo.svg` is the single source of truth for the mark — a hexagonal frame around a lock with a keyhole. The same geometry appears on the Android launcher icon, in the app and web headers, on the browser tab, and as the icon of the Windows binary in Explorer.
-
-| File | Role |
-| --- | --- |
-| `internal/brand/logo.svg` | Canonical, themed through CSS custom properties |
-| `internal/brand/logo-solid.svg` | Same geometry, literal colours, for a favicon or a README |
-| `internal/brand/icon.ico` | Eight frames, 16 → 256, embedded in the Windows binary |
-| `cmd/pantegnos/rsrc_windows_*.syso` | COFF resources that give the `.exe` its icon |
-| `web/logo.svg`, `web/favicon-*.png` | Copies for the browser, checked against the canonical file |
-
-Regenerate the raster forms after editing the SVG, then rebuild the resources:
-
-```bash
-go run ./tools/icon
-go run github.com/akavel/rsrc@latest -arch amd64 -ico internal/brand/icon.ico -o cmd/pantegnos/rsrc_windows_amd64.syso
-```
-
-Repeat the `rsrc` call for `386` and `arm64` when you change the icon.
-
-`go test ./internal/brand` fails if the Android vector drawable, the web copy or the favicons drift away from the canonical file, so the surfaces cannot silently diverge.
 
 ## Usage
 
@@ -247,7 +157,13 @@ Pre-built binaries are available in the [Releases](https://github.com/KernelDotD
 
 ## License
 
-Copyright (c) 2026 FrontierTM. Licensed under the MIT License. See [LICENSE](LICENSE) for details.
+Copyright (c) 2026 FrontierTM. All rights reserved.
+
+Pantegnos is released under the **GNU Affero General Public License v3.0** ([AGPL-3.0](LICENSE)). Releases up to and including `v9.4.3` were published under the MIT License, and copies taken under that grant keep it; every later release is AGPL-3.0.
+
+The AGPL keeps forks open: anyone who ships a modified version, or runs one as a network service — including a hosted copy of the web decryptor — must publish their source under the same license and keep the copyright notices intact. A rebrand cannot take the code closed.
+
+The name and the mark are not part of the grant. Forks and rebrands must ship under their own name and logo, and must not state or imply that they are Pantegnos or that this project endorses them.
 
 ---
 

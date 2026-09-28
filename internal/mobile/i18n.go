@@ -4,7 +4,8 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 )
 
 //go:embed locale/en.json locale/fa.json
@@ -67,12 +68,7 @@ func t(key string, args ...any) string {
 func localeKeys() map[string][]string {
 	out := map[string][]string{}
 	for code, c := range catalogs {
-		keys := make([]string, 0, len(c))
-		for k := range c {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		out[code] = keys
+		out[code] = slices.Sorted(maps.Keys(c))
 	}
 	return out
 }

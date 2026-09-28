@@ -49,11 +49,10 @@ func ParseClipboard(raw string) (PickedFile, bool) {
 	if text == "" {
 		return PickedFile{}, false
 	}
-	sep := strings.Index(text, schemeSeparator)
-	if sep <= 0 {
+	scheme, _, ok := strings.Cut(text, schemeSeparator)
+	if !ok || scheme == "" {
 		return PickedFile{}, false
 	}
-	scheme := text[:sep]
 	if !validScheme(scheme) {
 		return PickedFile{}, false
 	}

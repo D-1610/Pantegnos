@@ -122,12 +122,12 @@ func render(size int) *image.NRGBA {
 	step := 1 / float64(samples)
 	offset := step / 2
 
-	for py := 0; py < size; py++ {
-		for px := 0; px < size; px++ {
+	for py := range size {
+		for px := range size {
 			hits := 0
 			var sumR, sumG, sumB float64
-			for sy := 0; sy < samples; sy++ {
-				for sx := 0; sx < samples; sx++ {
+			for sy := range samples {
+				for sx := range samples {
 					p := point{
 						x: (float64(px) + float64(sx)*step + offset) * scale,
 						y: (float64(py) + float64(sy)*step + offset) * scale,

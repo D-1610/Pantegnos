@@ -27,6 +27,7 @@ const (
 	VersionCrypt2 = "crypt2"
 	VersionCrypt3 = "crypt3"
 	VersionCrypt4 = "crypt4"
+	VersionCrypt5 = "crypt5"
 )
 
 var (
@@ -39,7 +40,6 @@ var (
 
 type Engine struct {
 	privateKeys map[string]*rsa.PrivateKey
-	crypt5Keys  map[string]*rsa.PrivateKey
 	linkRegex   *regexp.Regexp
 }
 
@@ -77,7 +77,6 @@ func init() {
 func New() (*Engine, error) {
 	p := &Engine{
 		privateKeys: make(map[string]*rsa.PrivateKey),
-		crypt5Keys:  make(map[string]*rsa.PrivateKey),
 	}
 
 	p.linkRegex = regexp.MustCompile(`^(?:happ://)?([^/]+)/(.+)$`)
@@ -121,6 +120,19 @@ func (p *Engine) Decrypt(link string) (Result, error) {
 	version, encryptedData, err := p.parseLink(link)
 	if err != nil {
 		return Result{}, err
+	}
+
+	if version == VersionCrypt5 {
+		url, err := decryptCrypt5(encryptedData)
+		if err != nil {
+			return Result{}, err
+		}
+
+		return Result{
+			Version:       version,
+			UsedKey:       version,
+			DecryptedData: url,
+		}, nil
 	}
 
 	keysToTry := []string{version, VersionCrypt1, VersionCrypt2, VersionCrypt3, VersionCrypt4}
@@ -173,13 +185,18 @@ func decryptCrypt1to4(encryptedB64 string, privateKey *rsa.PrivateKey) (string, 
 }
 
 func b64DecodeUrlSafe(s string) ([]byte, error) {
+	s = strings.Map(func(r rune) rune {
+		switch r {
+		case ' ', '\t', '\n', '\r':
+			return -1
+		}
+		return r
+	}, s)
 	s = strings.ReplaceAll(s, "-", "+")
 	s = strings.ReplaceAll(s, "_", "/")
-	switch len(s) % 4 {
-	case 2:
-		s += "=="
-	case 3:
-		s += "="
+	s = strings.TrimRight(s, "=")
+	if pad := len(s) % 4; pad != 0 {
+		s += strings.Repeat("=", 4-pad)
 	}
 	return base64.StdEncoding.DecodeString(s)
 }

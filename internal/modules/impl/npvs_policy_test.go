@@ -3,6 +3,7 @@ package impl
 import (
 	"encoding/binary"
 	"encoding/json"
+	"maps"
 	"testing"
 
 	"Pantegnos/internal/modules"
@@ -46,9 +47,7 @@ func npvsTestHeader(extra map[string]any) map[string]any {
 		"recipients": []any{},
 		"v":          1,
 	}
-	for k, v := range extra {
-		header[k] = v
-	}
+	maps.Copy(header, extra)
 	return header
 }
 

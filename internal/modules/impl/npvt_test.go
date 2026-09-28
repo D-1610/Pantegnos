@@ -208,15 +208,12 @@ func TestVmessHostFromTopLevelWsHost(t *testing.T) {
 
 func queryOf(t *testing.T, uri string) url.Values {
 	t.Helper()
-	i := strings.Index(uri, "?")
-	if i < 0 {
+	_, query, ok := strings.Cut(uri, "?")
+	if !ok {
 		t.Fatalf("URI has no query: %s", uri)
 	}
-	frag := strings.Index(uri[i:], "#")
-	if frag < 0 {
-		frag = len(uri[i:])
-	}
-	q, err := url.ParseQuery(uri[i+1 : i+frag])
+	query, _, _ = strings.Cut(query, "#")
+	q, err := url.ParseQuery(query)
 	if err != nil {
 		t.Fatalf("URI query is unparseable: %v", err)
 	}
