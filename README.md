@@ -1,14 +1,31 @@
-<h1 align="left">
-  <img src="internal/brand/logo-solid.svg" width="48" height="48" alt="" style="vertical-align:middle">
-  Pantegnos
-</h1>
+<div align="center">
+  <h2>
+    <img src="internal/brand/logo.svg" width="64" height="64" alt="Pantegnos" valign="middle">
+    Pantegnos
+  </h2>
 
-[![Stars](https://img.shields.io/github/stars/FrontierTM/Pantegnos?style=flat-square)](https://github.com/FrontierTM/Pantegnos/stargazers)
-[![Forks](https://img.shields.io/github/forks/FrontierTM/Pantegnos?style=flat-square)](https://github.com/FrontierTM/Pantegnos/network/members)
-[![Issues](https://img.shields.io/github/issues/FrontierTM/Pantegnos?style=flat-square)](https://github.com/FrontierTM/Pantegnos/issues)
-[![Go](https://img.shields.io/badge/Go-1.26.3+-00ADD8?style=flat-square&logo=go)](https://go.dev/)
-[![Site](https://img.shields.io/badge/Web%20Decryptor-frontiertm.github.io%2FPantegnos-ff9e3d?style=flat-square)](https://frontiertm.github.io/Pantegnos/)
-[![Android](https://img.shields.io/badge/Android%20APK-Actions-3DDC84?style=flat-square&logo=github-actions)](https://github.com/FrontierTM/Pantegnos/actions/workflows/android.yml)
+  <p>
+    <a href="https://github.com/FrontierTM/Pantegnos/stargazers">
+      <img src="https://img.shields.io/github/stars/FrontierTM/Pantegnos?style=flat-square" alt="Stars">
+    </a>
+    <a href="https://github.com/FrontierTM/Pantegnos/network/members">
+      <img src="https://img.shields.io/github/forks/FrontierTM/Pantegnos?style=flat-square" alt="Forks">
+    </a>
+    <a href="https://github.com/FrontierTM/Pantegnos/issues">
+      <img src="https://img.shields.io/github/issues/FrontierTM/Pantegnos?style=flat-square" alt="Issues">
+    </a>
+    <a href="https://go.dev/">
+      <img src="https://img.shields.io/badge/Go-1.26.3+-00ADD8?style=flat-square&logo=go" alt="Go">
+    </a>
+    <a href="https://frontiertm.github.io/Pantegnos/">
+      <img src="https://img.shields.io/badge/Web%20Decryptor-frontiertm.github.io%2FPantegnos-ff9e3d?style=flat-square" alt="Web Decryptor">
+    </a>
+    <a href="https://github.com/FrontierTM/Pantegnos/actions/workflows/android.yml">
+      <img src="https://img.shields.io/badge/Android%20APK-Actions-3DDC84?style=flat-square&logo=github-actions" alt="Android APK">
+    </a>
+  </p>
+</div>
+
 
 A multi-platform decryptor for VPN and proxy configuration files used by various Android and desktop clients. Pantegnos extracts readable server metadata from encrypted proprietary formats, making it useful for security researchers analyzing these tools.
 
