@@ -39,6 +39,7 @@
   "format_npvs": "NapsternetV — PBKDF2 و ChaCha20-Poly1305",
   "format_npvt": "NapsternetV — AES-CTR-SHA256 جعبه‌سفید",
   "format_slip": "پروفایل SlipNet — متن ساده یا پوشش AES-256-GCM",
+  "format_tls": "TLS Tunnel — پروفایل AES-256-GCM با بستهٔ base64 معکوس",
   "msg_copied": "در کلیپ‌بورد کپی شد",
   "msg_copy_failed": "کلیپ‌بورد در دسترس نیست",
   "msg_engine_failed": "رمزگشایی ناموفق بود",
